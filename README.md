@@ -11,10 +11,6 @@ This is a [k6](https://go.k6.io/k6) extension using the [xk6](https://github.com
     - [Nats](#nats)
     - [Publishing](#publishing)
     - [Subscribing](#subscribing)
-    - [JetStream](#jetstream)
-      - [JetStream operations](#jetstream-operations)
-    - [Return values](#return-values)
-  - [Examples](#examples)
   - [License](#license)
 
 ## Build
@@ -54,29 +50,65 @@ To run publish with headers test, make sure NATS JetStream is started, e.g. `nat
 
 ## API
 
-### Nats
+## Nats
 
-A Nats instance represents the connection with the NATS server, and it is created with `new Nats(configuration)`, where configuration attributes are:
+A `Nats` instance represents the connection with the NATS server. It's created with `new Nats(configuration)`, where `configuration` is an object with the following attributes:
 
 | Attribute | Description |
 | --- | --- |
-| `servers` | (mandatory) is the list of servers where NATS is available (e.g. `[nats://localhost:4222]`) |
-| `unsafe` | (optional) allows running with self-signed certificates when doing tests against a testing environment, it is a boolean value (default value is `false`) |
-| `token` | (optional) is the value of the token used to connect to the NATS server |
+| `servers` | (mandatory) A list of NATS server URLs (e.g., `['nats://localhost:4222']`). |
+| `auth` | (optional) An object defining the authentication strategy. |
 
-Example:
+### `auth` Configuration
 
-```ts
-import {Nats} from 'k6/x/nats'
+The `auth` object allows you to specify how to authenticate with the NATS server. It has the following attributes:
 
-const natsConfig = {
+| Attribute | Description |
+| --- | --- |
+| `strategy` | (optional) The authentication strategy to use. Can be `'unsafe'`, `'user_password'`, or `'token'`. If not provided, no specific authentication is used, but `unsafe` (for TLS) can still apply. |
+| `unsafe` | (optional) A boolean value (default: `false`). If `true`, it allows connecting to NATS with self-signed TLS certificates, useful for testing environments. This applies when `strategy` is `'unsafe'` or no `strategy` is specified. |
+| `token` | (optional) The authentication token used to connect to the NATS server. Required if `strategy` is `'token'`. |
+| `username` | (optional) The username for `'user_password'` authentication. Required if `strategy` is `'user_password'`. |
+| `password` | (optional) The password for `'user_password'` authentication. Required if `strategy` is `'user_password'`. |
+
+**Example Usage for Connection:**
+
+```typescript
+import { Nats } from 'k6/x/nats';
+
+// Example: Basic connection with unsafe TLS
+const natsConfigUnsafe = {
     servers: ['nats://localhost:4222'],
-    unsafe: true,
-}
+    auth: {
+        unsafe: true,
+        strategy: 'unsafe', // Explicitly declare 'unsafe' strategy
+    },
+};
+const natsUnsafe = new Nats(natsConfigUnsafe);
 
-const nats = new Nats(natsConfig)
+// Example: Connection with username and password
+const natsConfigUserPass = {
+    servers: ['nats://localhost:4222'],
+    auth: {
+        strategy: 'user_password',
+        username: 'myuser',
+        password: 'mypassword',
+    },
+};
+const natsUserPass = new Nats(natsConfigUserPass);
+
+// Example: Connection with a token
+const natsConfigToken = {
+    servers: ['nats://localhost:4222'],
+    auth: {
+        strategy: 'token',
+        token: 'mysecrettoken',
+    },
+};
+const natsToken = new Nats(natsConfigToken);
 ```
 
+---
 ### Publishing
 
 You can publish messages to a topic using the following functions:
@@ -120,105 +152,6 @@ subscription.close()
 ```
 
 > **Note:** the subscription model has been changed. Now when you use `subscribe` method, a subscription object is returned and the subscription should be closed using the `close()` method.
-
-### JetStream
-
-You can use JetStream Pub/Sub in the same way as NATS Pub/Sub. The only difference is that you need to setup the stream before publishing or subscribing to it.
-
-The configuration is the same as the one used in the nats-io's `StreamConfig`:
-
-| Attribute | Description |
-| --- | --- |
-| `name` | (mandatory) is the name of the stream |
-| `description` | (optional) is the description of the stream |
-| `subjects` | (mandatory) is the list of subjects that the stream will be listening to |
-| `retention` | (optional) is the retention policy of the stream, it can be `limits`, `interest`, `workqueue` or `stream` |
-| `max_consumers` | (optional) is the maximum number of consumers that the stream will allow |
-| `max_msgs` | (optional) is the maximum number of messages that the stream will store |
-| `max_bytes` | (optional) is the maximum number of bytes that the stream will store |
-| `max_age` | (optional) is the maximum age of the messages that the stream will store |
-| `max_msg_size` | (optional) is the maximum size of the messages that the stream will store |
-| `discard` | (optional) is the discard policy of the stream, it can be `old`, `new` or `none` |
-| `storage` | (optional) is the type of storage that the stream will use, it can be `file` or `memory` |
-| `replicas` | (optional) is the number of replicas that the stream will have |
-| `no_ack` | (optional) is a boolean value that indicates if the stream will use acks or not |
-
-Example:
-
-```ts
-const streamConfig = {
-    name: "mock",
-    subjects: ["foo"],
-    max_msgs_per_subject: 100,
-    discard: 0,
-    storage: 1
-}
-
-const publisher = new Nats(natsConfig)
-publisher.jetStreamSetup(streamConfig)
-```
-
-#### JetStream operations
-
-Once the stream is setup, you can publish and subscribe to it using the following functions:
-
-| Function | Description |
-| --- | --- |
-| `jetStreamSetup(config)` | setup a stream with the given configuration |
-| `jetStreamPublish(topic, payload)` | publish a new message using the topic (string) and the given payload that is a string representation that later is serialized as a byte array |
-| `jetStreamPublishWithHeaders(topic, payload, headers)` | publish a new message using the topic (string), the given payload that is a string representation that later is serialized as a byte array and the headers |
-| `jetStreamPublishMsg(message)` | publish a new message using the `message` (object) that has the following attributes: `topic` (string), `data` (string), `raw`(byte array) and `headers` (object) |
-| `jetStreamSubscribe(topic, callback)` | subscribe to a topic (string) and execute the callback function when a `message` is received, it returns a `subscription` |
-
-Example:
-
-```ts
-const subscriber = new Nats(natsConfig)
-publisher.jetStreamSetup(streamConfig)
-const subscription = subscriber.jetStreamSubscribe('mock', (msg) => {
-    console.log(msg.data)
-})
-
-const publisher = new Nats(natsConfig)
-publisher.jetStreamPublish('foo', 'data')
-publisher.jetStreamPublishWithHeaders('foo', 'data', { 'header1': 'value1' })
-publisher.jetStreamPublishMsg({ topic: 'topic', data: 'string data', headers: { 'header1': 'value1' } })
-publisher.jetStreamPublishMsg({ topic: 'topic', raw: [ 0, 1, 2, 3 ], headers: { 'header1': 'value1' } })
-
-// ...
-
-subscription.close()
-```
-
-### Return values
-
-A `subscription` return value has the following methods:
-
-| Method | Description |
-| --- | --- |
-| `close()` | closes the subscription |
-
-A `message` return value has the following attributes:
-
-| Attribute | Description |
-| --- | --- |
-| `raw` | the payload in byte array format |
-| `data` | the payload in string format |
-| `topic` | the topic where the message was published |
-| `headers` | the headers of the message |
-
-## Examples
-
-You can find some examples in the [examples](examples) folder. To run them, you need to have a NATS server running and then run the following command:
-
-```shell
-k6 run -e NATS_HOSTNAME=your_nats_server_host examples/binary.js
-k6 run -e NATS_HOSTNAME=your_nats_server_host examples/complex.js
-k6 run -e NATS_HOSTNAME=your_nats_server_host examples/simple.js
-k6 run -e NATS_HOSTNAME=your_nats_server_host examples/withHeaders.js
-```
-
-Or you can check the [test](test) folder to see how to use the extension.
 
 ## License
 

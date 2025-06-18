@@ -59,18 +59,39 @@ func (n *Nats) client(c goja.ConstructorCall) *goja.Object {
 	var cfg Configuration
 	err := rt.ExportTo(c.Argument(0), &cfg)
 	if err != nil {
-		common.Throw(rt, fmt.Errorf("Nats constructor expect Configuration as it's argument: %w", err))
+		common.Throw(rt, fmt.Errorf("Nats constructor expects Configuration as its argument: %w", err))
 	}
 
-	natsOptions := natsio.GetDefaultOptions()
+	natsOptions := natsio.GetDefaultOptions() // Assuming nats.GetDefaultOptions() based on common usage
 	natsOptions.Servers = cfg.Servers
-	if cfg.Unsafe {
-		natsOptions.TLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
+
+	// Handle authentication strategies
+	switch cfg.Auth.Strategy {
+	case "unsafe":
+		// This strategy implicitly means no specific auth beyond potentially TLS.
+		// If cfg.Auth.Unsafe is true, we skip TLS verification.
+		if cfg.Auth.Unsafe {
+			natsOptions.TLSConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
 		}
-	}
-	if cfg.Token != "" {
-		natsOptions.Token = cfg.Token
+	case "user_password":
+		if cfg.Auth.Username == "" || cfg.Auth.Password == "" {
+			common.Throw(rt, fmt.Errorf("username and password are required for 'user_password' strategy"))
+		}
+		natsOptions.User = cfg.Auth.Username
+		natsOptions.Password = cfg.Auth.Password
+	case "token":
+		if cfg.Auth.Token == "" {
+			common.Throw(rt, fmt.Errorf("token is required for 'token' strategy"))
+		}
+		natsOptions.Token = cfg.Auth.Token
+	default:
+		if cfg.Auth.Unsafe {
+			natsOptions.TLSConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+		}
 	}
 
 	conn, err := natsOptions.Connect()
@@ -344,8 +365,15 @@ func (n *Nats) Request(subject, data string, headers map[string]string) (Message
 
 type Configuration struct {
 	Servers []string
-	Unsafe  bool
-	Token   string
+	Auth    Auth
+}
+
+type Auth struct {
+	Unsafe   bool
+	Strategy string
+	Token    string
+	Username string
+	Password string
 }
 
 type Message struct {
