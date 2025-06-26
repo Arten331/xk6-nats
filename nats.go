@@ -15,11 +15,8 @@ func init() {
 	modules.Register("k6/x/nats", new(RootModule))
 }
 
-// RootModule is the global module object type. It is instantiated once per test
-// run and will be used to create k6/x/nats module instances for each VU.
 type RootModule struct{}
 
-// ModuleInstance represents an instance of the module for every VU.
 type Nats struct {
 	conn    *natsio.Conn
 	vu      modules.VU
@@ -32,8 +29,6 @@ var (
 	_ modules.Module   = &RootModule{}
 )
 
-// NewModuleInstance implements the modules.Module interface and returns
-// a new instance for each VU.
 func (r *RootModule) NewModuleInstance(vu modules.VU) modules.Instance {
 	mi := &Nats{
 		vu:      vu,
@@ -45,8 +40,6 @@ func (r *RootModule) NewModuleInstance(vu modules.VU) modules.Instance {
 	return mi
 }
 
-// Exports implements the modules.Instance interface and returns the exports
-// of the JS module.
 func (mi *Nats) Exports() modules.Exports {
 	return modules.Exports{
 		Named: mi.exports,
@@ -65,11 +58,8 @@ func (n *Nats) client(c goja.ConstructorCall) *goja.Object {
 	natsOptions := natsio.GetDefaultOptions() // Assuming nats.GetDefaultOptions() based on common usage
 	natsOptions.Servers = cfg.Servers
 
-	// Handle authentication strategies
 	switch cfg.Auth.Strategy {
 	case "unsafe":
-		// This strategy implicitly means no specific auth beyond potentially TLS.
-		// If cfg.Auth.Unsafe is true, we skip TLS verification.
 		if cfg.Auth.Unsafe {
 			natsOptions.TLSConfig = &tls.Config{
 				InsecureSkipVerify: true,
