@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dop251/goja"
+	"github.com/grafana/sobek"
 	natsio "github.com/nats-io/nats.go"
 	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modules"
@@ -46,16 +46,16 @@ func (mi *Nats) Exports() modules.Exports {
 	}
 }
 
-func (n *Nats) client(c goja.ConstructorCall) *goja.Object {
+func (n *Nats) client(c sobek.ConstructorCall) *sobek.Object {
 	rt := n.vu.Runtime()
 
 	var cfg Configuration
 	err := rt.ExportTo(c.Argument(0), &cfg)
 	if err != nil {
-		common.Throw(rt, fmt.Errorf("Nats constructor expects Configuration as its argument: %w", err))
+		common.Throw(rt, fmt.Errorf("Nats constructor expects a Configuration object as its argument: %w", err))
 	}
 
-	natsOptions := natsio.GetDefaultOptions() // Assuming nats.GetDefaultOptions() based on common usage
+	natsOptions := natsio.GetDefaultOptions()
 	natsOptions.Servers = cfg.Servers
 
 	switch cfg.Auth.Strategy {
@@ -184,7 +184,6 @@ func (n *Nats) Subscribe(topic string, handler MessageHandler) (*Subscription, e
 	return &subscription, err
 }
 
-// Connects to JetStream and creates a new stream or updates it if exists already
 func (n *Nats) JetStreamSetup(streamConfig *natsio.StreamConfig) error {
 	if n.conn == nil {
 		return fmt.Errorf("the connection is not valid")
@@ -192,7 +191,7 @@ func (n *Nats) JetStreamSetup(streamConfig *natsio.StreamConfig) error {
 
 	js, err := n.conn.JetStream()
 	if err != nil {
-		return fmt.Errorf("cannot accquire jetstream context %w", err)
+		return fmt.Errorf("cannot acquire jetstream context: %w", err)
 	}
 
 	stream, _ := js.StreamInfo(streamConfig.Name)
@@ -212,12 +211,10 @@ func (n *Nats) JetStreamDelete(name string) error {
 
 	js, err := n.conn.JetStream()
 	if err != nil {
-		return fmt.Errorf("cannot accquire jetstream context %w", err)
+		return fmt.Errorf("cannot acquire jetstream context: %w", err)
 	}
 
-	js.DeleteStream(name)
-
-	return err
+	return js.DeleteStream(name)
 }
 
 func (n *Nats) JetStreamPublish(topic string, message string) error {
@@ -227,7 +224,7 @@ func (n *Nats) JetStreamPublish(topic string, message string) error {
 
 	js, err := n.conn.JetStream()
 	if err != nil {
-		return fmt.Errorf("cannot accquire jetstream context %w", err)
+		return fmt.Errorf("cannot acquire jetstream context: %w", err)
 	}
 
 	_, err = js.Publish(topic, []byte(message))
@@ -247,7 +244,7 @@ func (n *Nats) JetStreamPublishWithHeaders(topic, message string, headers map[st
 
 	js, err := n.conn.JetStream()
 	if err != nil {
-		return fmt.Errorf("cannot accquire jetstream context %w", err)
+		return fmt.Errorf("cannot acquire jetstream context: %w", err)
 	}
 
 	_, err = js.PublishMsg(&natsio.Msg{
@@ -277,7 +274,7 @@ func (n *Nats) JetStreamPublishMsg(msg *Message) error {
 
 	js, err := n.conn.JetStream()
 	if err != nil {
-		return fmt.Errorf("cannot accquire jetstream context %w", err)
+		return fmt.Errorf("cannot acquire jetstream context: %w", err)
 	}
 
 	_, err = js.PublishMsg(&natsio.Msg{
@@ -297,7 +294,7 @@ func (n *Nats) JetStreamSubscribe(topic string, handler MessageHandler) (*Subscr
 
 	js, err := n.conn.JetStream()
 	if err != nil {
-		return nil, fmt.Errorf("cannot accquire jetstream context %w", err)
+		return nil, fmt.Errorf("cannot acquire jetstream context: %w", err)
 	}
 
 	sub, err := js.Subscribe(topic, func(msg *natsio.Msg) {
@@ -334,22 +331,33 @@ func (n *Nats) Request(subject, data string, headers map[string]string) (Message
 		return Message{}, fmt.Errorf("the connection is not valid")
 	}
 
-	msg, err := n.conn.Request(subject, []byte(data), 5*time.Second)
-	if err != nil {
-		return Message{}, err
+	msg := &natsio.Msg{
+		Subject: subject,
+		Data:    []byte(data),
 	}
 
 	if len(headers) > 0 {
+		msg.Header = natsio.Header{}
 		for k, v := range headers {
 			msg.Header.Add(k, v)
 		}
 	}
 
+	resp, err := n.conn.RequestMsg(msg, 5*time.Second)
+	if err != nil {
+		return Message{}, err
+	}
+
+	respHeaders := make(map[string]string)
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
+	}
+
 	return Message{
-		Raw:    msg.Data,
-		Data:   string(msg.Data),
-		Topic:  msg.Subject,
-		Header: headers,
+		Raw:    resp.Data,
+		Data:   string(resp.Data),
+		Topic:  resp.Subject,
+		Header: respHeaders,
 	}, nil
 }
 

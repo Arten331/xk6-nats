@@ -2,7 +2,7 @@ install:
 	go install go.k6.io/xk6/cmd/xk6@latest
 
 compile:
-	xk6 build --with xk6-nats=.
+	xk6 build -v --with xk6-nats=.
 
 nats/docker-local:
 	docker run -d --name nats-tests -p 4222:4222 nats -js
