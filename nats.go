@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/sobek"
+	"github.com/grafana/sobek" // Switched back to sobek
+	"github.com/mitchellh/mapstructure"
 	natsio "github.com/nats-io/nats.go"
 	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modules"
@@ -50,7 +51,8 @@ func (n *Nats) client(c sobek.ConstructorCall) *sobek.Object {
 	rt := n.vu.Runtime()
 
 	var cfg Configuration
-	err := rt.ExportTo(c.Argument(0), &cfg)
+	// Use mapstructure to decode the JS object (exported as a map) into the Go struct.
+	err := mapstructure.Decode(c.Argument(0).Export(), &cfg)
 	if err != nil {
 		common.Throw(rt, fmt.Errorf("Nats constructor expects a Configuration object as its argument: %w", err))
 	}

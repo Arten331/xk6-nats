@@ -4,20 +4,20 @@ go 1.24
 
 require (
 	github.com/grafana/sobek v0.0.0-20250617123252-8dce75eadcb6
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nats-io/nats.go v1.43.0
 	go.k6.io/k6 v0.50.0
 )
 
 require (
-	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
-	github.com/evanw/esbuild v0.25.5 // indirect
+	github.com/dop251/goja v0.0.0-20240220182346-e401ed450204 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
